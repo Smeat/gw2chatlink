@@ -27,7 +27,7 @@ class GlobalHotKeys():
 		key = key_to_str(key)
 		try:
 			match = self.key_mapping[key]
-			match[1]()
+			match[1](list(self.last_keys).copy())
 		except KeyError:
 			pass
 

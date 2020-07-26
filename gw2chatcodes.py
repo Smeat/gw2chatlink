@@ -1,6 +1,6 @@
 #/usr/bin/env python3
 import base64
-from globalhotkeys import GlobalHotKeys
+from globalhotkeys import GlobalHotKeys, key_to_str
 import signal
 import time
 import subprocess
@@ -76,8 +76,15 @@ def select_item(data) -> Item:
 		key = key_map[int(user_input)]
 		next_options = current_options[key]
 		if type(next_options) is not dict:
-			user_input = int(input("Input amount for {} (1-255):".format(key)))
-			if user_input < 1 or user_input > 255:
+# TODO: enable/disable continous mode
+#			continous_mode = False
+#			user_input = input("Activate continous mode? [Y/n]")
+#			print(str(user_input))
+#			if user_input == "" or user_input[-1] == "y":
+#				user_input = 0
+
+			user_input = int(input("Input amount for {} (0-255). 0 enables you to type the amount before pressing the hotkey:".format(key)))
+			if user_input < 0 or user_input > 255:
 				print("Invalid amount!")
 				next_options = current_options
 			
@@ -91,7 +98,7 @@ def send_notification(title: str, text: str):
 	subprocess.Popen(["notify-send", title, text])
 
 
-def assign_hotkey(item: Item):
+def assign_hotkey(item_param: Item):
 	print("Press hotkey to assign this action to (Enter to skip)")
 	user_confirmed = False
 	while not user_confirmed:
@@ -102,9 +109,20 @@ def assign_hotkey(item: Item):
 			input() # flush the input
 			return
 		user_input = input("Using {} as the key. Is this correct? [Y/n]".format(key))
-		if user_input == 0 or user_input[-1] == "y":
+		if user_input == "" or user_input[-1] == "y":
 			user_confirmed = True
-	def on_hotkey():
+
+	def on_hotkey(key_hist):
+		# TODO: proper copy?
+		item = Item(item_param.name, item_param.link)
+		if item.get_amount() == 0:
+			prev_num = 0
+			for i in range(1,4):
+				key_str = key_to_str(key_hist[i])
+				if not key_str.isdigit():
+					break
+				prev_num += int(key_str)*10**(i-1)
+			item.set_amount(prev_num)
 		save_to_clipboard(item.link)
 		send_notification("GW2 Item","Copied {} of {}".format(item.get_amount(), item.name))
 	ghk.register(key, func=on_hotkey)
