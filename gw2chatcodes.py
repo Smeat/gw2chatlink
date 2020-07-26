@@ -3,6 +3,7 @@ import base64
 from globalhotkeys import GlobalHotKeys
 import signal
 import time
+import subprocess
 
 from pynput import keyboard
 import pyperclip
@@ -10,10 +11,30 @@ import pyperclip
 ghk = GlobalHotKeys()
 running = True
 
+class Item:
+	name: str
+	link: str
+
+	def __init__(self, name, link):
+		self.name = name
+		self.link = link
+	
+	def get_amount(self):
+		clean_link = self.link[2:-1]
+		decoded_data = base64.b64decode(clean_link)
+		return decoded_data[1]
+
+	def set_amount(self, amount:int):
+		clean_link = self.link[2:-1]
+		decoded_data = base64.b64decode(clean_link)
+		modified_data = decoded_data[:1] + amount.to_bytes(1, "little") + decoded_data[2:]
+		new_link = base64.b64encode(modified_data)
+		self.link = "[&{}]".format(new_link.decode("utf-8"))
+
 data_dict = {
 		"LI/LD" : {"Legendary Insight": "[&AgH2LQEA]", "Legendary Divination": "[&AgGlWQEA]"},
 		"Wings" : {
-			"W1" : {"Vale Guardian" : "[&AgGJLwEA]", "Gorseval" : "[&AgG3LwEA]", "Sabetha": "[&AgGgLwEA]"},
+			"W1" : {"Vale Guardian": "[&AgGJLwEA]", "Gorseval": "[&AgG3LwEA]", "Sabetha": "[&AgGgLwEA]"},
 			"W2" : {"Slothasor": "[&AgGKLwEA]",  "Matthias": "[&AgFvLwEA]"},
 			"W3" : {"Escort" : "[&AgFtNAEA]", "Keep Construct" : "[&AgE2NAEA]", "Xera": "[&AgFeNAEA]"},
 			"W4" : {"Cairn": "[&AgHvOgEA]", "Mursaat Overseer": "[&AgGNOQEA]", "Samarog": "[&AgHXOAEA]", "Deimos": "[&AgGeOgEA]"},
@@ -39,7 +60,7 @@ def save_to_clipboard(string: str):
 	print("Saving '{}' to clipboard".format(string))
 	pyperclip.copy(string)
 	
-def select_item(data) -> str:
+def select_item(data) -> Item:
 	current_options = data
 	while current_options is not None:
 		key_map = {}
@@ -60,27 +81,35 @@ def select_item(data) -> str:
 				print("Invalid amount!")
 				next_options = current_options
 			
-			chat_link = modify_chat_link(next_options, user_input)
-			save_to_clipboard(chat_link)
-			return chat_link
+			item = Item(key, next_options)
+			item.set_amount(user_input)
+			save_to_clipboard(item.link)
+			return item
 		current_options = next_options
 
-def assign_hotkey(string: str):
+def send_notification(title: str, text: str):
+	subprocess.Popen(["notify-send", title, text])
+
+
+def assign_hotkey(item: Item):
 	print("Press hotkey to assign this action to (Enter to skip)")
 	user_confirmed = False
 	while not user_confirmed:
 		print("Waiting for key...")
 		key = ghk.get_next_key()
+		print("Pressed {}".format(key))
 		if key == keyboard.Key.enter:
 			input() # flush the input
 			return
 		user_input = input("Using {} as the key. Is this correct? [Y/n]".format(key))
 		if user_input == 0 or user_input[-1] == "y":
 			user_confirmed = True
-	ghk.register(key, func=lambda: save_to_clipboard(string))
+	def on_hotkey():
+		save_to_clipboard(item.link)
+		send_notification("GW2 Item","Copied {} of {}".format(item.get_amount(), item.name))
+	ghk.register(key, func=on_hotkey)
 
 if __name__ == "__main__":
-	
 	while running:
 		selected_link = select_item(data_dict)
 		if selected_link is not None:
