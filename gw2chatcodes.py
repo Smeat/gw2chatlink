@@ -8,8 +8,11 @@ import subprocess
 from pynput import keyboard
 import pyperclip
 
+from typing import List
+
 ghk = GlobalHotKeys()
 running = True
+item_buf = []
 
 class Item:
 	name: str
@@ -97,6 +100,16 @@ def select_item(data) -> Item:
 def send_notification(title: str, text: str):
 	subprocess.Popen(["notify-send", title, text])
 
+def copy_items(items: List):
+	clipboard_str = ""
+	notify_str = ""
+	for item in items:
+		clipboard_str += item.link
+		notify_str += "{} of {}\n".format(item.get_amount(), item.name)
+
+
+	save_to_clipboard(clipboard_str)
+	send_notification("GW2 Item", notify_str)
 
 def assign_hotkey(item_param: Item):
 	print("Press hotkey to assign this action to (Enter to skip)")
@@ -123,11 +136,16 @@ def assign_hotkey(item_param: Item):
 					break
 				prev_num += int(key_str)*10**(i-1)
 			item.set_amount(prev_num)
-		save_to_clipboard(item.link)
-		send_notification("GW2 Item","Copied {} of {}".format(item.get_amount(), item.name))
+		item_buf.append(item)
+		copy_items(item_buf)
 	ghk.register(key, func=on_hotkey)
 
 if __name__ == "__main__":
+	def esc_event(key_hist):
+		item_buf.clear()
+		send_notification("GW2 Item", "Buffer cleared")
+
+	ghk.register(keyboard.Key.esc, func = esc_event)
 	while running:
 		selected_link = select_item(data_dict)
 		if selected_link is not None:
